@@ -2,28 +2,27 @@ import { systemUser, type User } from "@/shared/model/User";
 import { defineStore } from "pinia";
 import type { End, Input, Message } from "../model";
 
-
 const bidTimeout = 15 * 1000;
 const winningBidTreshold = 3000;
 
 type State = {
-  session: Session | null,
-  messages: Message[],
-  defaultTimeout: number,
+  session: Session | null;
+  messages: Message[];
+  defaultTimeout: number;
 };
 
 export type Session = {
-  id: number,
-  price: number,
-  startTime: Date,
-  endTime: Date | null,
+  id: number;
+  price: number;
+  startTime: Date;
+  endTime: Date | null;
 };
 
 export type ClinetMessage = {
-  sessionId: number,
-  user: User,
-  text: string,
-}
+  sessionId: number;
+  user: User;
+  text: string;
+};
 
 enum SessionStep {
   started,
@@ -31,7 +30,7 @@ enum SessionStep {
   sendPrice,
   expectBid,
   checkPrice,
-  end
+  end,
 }
 
 const messageTexts = {
@@ -40,22 +39,26 @@ const messageTexts = {
     return `The current price is €${price}. What is your bid?`;
   },
   sendPriceTimeout: "Please hurry up!",
-  sendLowerPrice: "Thank you. This is quite far from what we expected. So please enter a more improved offer.",
-  end: "Congratulations, you got the deal!"
-}
+  sendLowerPrice:
+    "Thank you. This is quite far from what we expected. So please enter a more improved offer.",
+  end: "Congratulations, you got the deal!",
+};
 
 const sessionSteps = new WeakMap<Session, SessionStep>();
 
-export const useCurrentSessionActionStore = defineStore("currentSessionAction", {
-  state: () => ({
-    action: null as Message | Input | End | null,
-  }),
-  actions: {
-    setAction(action: Message | Input | End | null) {
-      this.action = action;
-    }
+export const useCurrentSessionActionStore = defineStore(
+  "currentSessionAction",
+  {
+    state: () => ({
+      action: null as Message | Input | End | null,
+    }),
+    actions: {
+      setAction(action: Message | Input | End | null) {
+        this.action = action;
+      },
+    },
   }
-});
+);
 
 export const useSessionStore = defineStore("session", {
   state: (): State => ({
@@ -76,7 +79,7 @@ export const useSessionStore = defineStore("session", {
       return this.session;
     },
     async getMessages(sessionId: number): Promise<Message[]> {
-      return this.messages.filter(message => message.sessionId === sessionId);
+      return this.messages.filter((message) => message.sessionId === sessionId);
     },
     // some kind of a state machine but it works
     async next(): Promise<Message | Input | End | null> {
@@ -131,7 +134,8 @@ export const useSessionStore = defineStore("session", {
       if (step === SessionStep.expectBid) {
         const lastMessage = this.messages[this.messages.length - 1];
         const currentTime = new Date();
-        const timeout = bidTimeout - (currentTime.getTime() - lastMessage.sendTime.getTime());
+        const timeout =
+          bidTimeout - (currentTime.getTime() - lastMessage.sendTime.getTime());
         if (timeout > 0) {
           const input = {
             timeout: new Date(Date.now() + timeout),
@@ -187,7 +191,7 @@ export const useSessionStore = defineStore("session", {
       if (step === SessionStep.end) {
         const end = {
           endTime: new Date(),
-        }
+        };
         actionStore.setAction(end);
         return end;
       }
@@ -208,6 +212,6 @@ export const useSessionStore = defineStore("session", {
       };
       this.messages.push(message);
       this.next();
-    }
+    },
   },
 });

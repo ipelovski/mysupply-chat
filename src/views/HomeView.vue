@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import Chat from "@/chat/components/Chat.vue";
+import ChatSession from "@/chat/components/ChatSession.vue";
 </script>
 
 <template>
   <main>
-    <Chat />
+    <ChatSession />
   </main>
 </template>

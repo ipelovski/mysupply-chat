@@ -16,6 +16,6 @@ export const useUserStore = defineStore("user", {
         };
       }
       return this.currentUser;
-    }
-  }
+    },
+  },
 });

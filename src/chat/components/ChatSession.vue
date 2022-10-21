@@ -2,24 +2,25 @@
 import type { User } from "@/shared/model/User";
 import { useUserStore } from "@/shared/stores/user";
 import type { End, Input, Message } from "../model";
-import { useSessionStore, useCurrentSessionActionStore } from "../stores/session";
+import {
+  useSessionStore,
+  useCurrentSessionActionStore,
+} from "../stores/session";
 import ChatAvatar from "./ChatAvatar.vue";
 
-const pollInterval = 100;
-
 type ChatMessage = {
-  id: number,
+  id: number;
   user: {
-    name: string,
-    avatar: string,
-    avatarColor: string,
-  },
-  text: string[],
-}
+    name: string;
+    avatar: string;
+    avatarColor: string;
+  };
+  text: string[];
+};
 
 export default {
   components: {
-    ChatAvatar
+    ChatAvatar,
   },
   setup() {
     const sessionStore = useSessionStore();
@@ -67,8 +68,9 @@ export default {
       let expectedEnd = timeout.getTime();
       this.clearTimeoutProgress = setInterval(() => {
         const now = new Date().getTime();
-        this.timeoutProgress = (expectedEnd - now) / this.sessionStore.defaultTimeout;
-        this.bidTimeout = (((expectedEnd - now) / 1000) + 1) | 0;
+        this.timeoutProgress =
+          (expectedEnd - now) / this.sessionStore.defaultTimeout;
+        this.bidTimeout = ((expectedEnd - now) / 1000 + 1) | 0;
         if (this.timeoutProgress <= 0) {
           this.timeoutProgress = 0;
           this.bidTimeout = 0;
@@ -94,7 +96,7 @@ export default {
           (this.$refs.messageInput as HTMLInputElement).focus();
         }
       }, 10);
-    }
+    },
   },
   async created() {
     this.currentUser = await this.userStore.getCurrentUser();
@@ -109,34 +111,52 @@ export default {
   },
   unmounted() {
     clearInterval(this.clearTimeoutProgress);
-  }
-}
+  },
+};
 </script>
 <template>
   <div v-if="currentUser !== null" class="q-pa-md row justify-center">
     <div style="width: 100%; max-width: 640px">
-      <q-chat-message v-for="message in chatMessages" :key="message.id"
+      <q-chat-message
+        v-for="message in chatMessages"
+        :key="message.id"
         :text="message.text"
         :sent="message.user.name === currentUser.name"
-        :bg-color="message.user.avatarColor">
+        :bg-color="message.user.avatarColor"
+      >
         <template v-slot:avatar>
-          <ChatAvatar :user="message.user" :sent="message.user.name === currentUser.name" />
+          <ChatAvatar
+            :user="message.user"
+            :sent="message.user.name === currentUser.name"
+          />
         </template>
       </q-chat-message>
     </div>
   </div>
-  <div v-if="actionStore.action !== null && 'timeout' in actionStore.action" class="client-message">
+  <div
+    v-if="actionStore.action !== null && 'timeout' in actionStore.action"
+    class="client-message"
+  >
     <div class="row flex-center">
       <q-linear-progress rounded :value="timeoutProgress" instant-feedback />
     </div>
-    <div class="row flex-center">
-      {{ bidTimeout }} seconds
-    </div>
+    <div class="row flex-center">{{ bidTimeout }} seconds</div>
     <div class="row flex-center">
       <span class="input">
-        <input type="text" v-model="messageInputValue" @keypress.enter="event => sendBid()" ref="messageInput" />&nbsp;<span>€</span>
+        <input
+          type="text"
+          v-model="messageInputValue"
+          @keypress.enter="(event) => sendBid()"
+          ref="messageInput"
+        />&nbsp;<span>€</span>
       </span>
-      <q-btn color="primary" class="btn" unelevated label="Send" @click="sendBid()" />
+      <q-btn
+        color="primary"
+        class="btn"
+        unelevated
+        label="Send"
+        @click="sendBid()"
+      />
     </div>
   </div>
 </template>
@@ -151,7 +171,7 @@ export default {
 .client-message .input input {
   border: none;
   outline: none;
-  text-align: right; 
+  text-align: right;
 }
 .client-message .btn {
   margin-left: 10px;

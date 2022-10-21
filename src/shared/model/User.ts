@@ -1,7 +1,7 @@
 export type User = {
-  name: string,
-  avatar: string,
-  avatarColor: string,
+  name: string;
+  avatar: string;
+  avatarColor: string;
 };
 
 export const systemUser: User = {
