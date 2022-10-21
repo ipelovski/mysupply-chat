@@ -1,10 +1,8 @@
+import { systemUser, type User } from "@/shared/model/User";
 import { defineStore } from "pinia";
+import type { End, Input, Message } from "../model";
 
-export const systemUser: Message["user"] = {
-  name: "system",
-  avatar: "",
-  avatarColor: "orange",
-};
+
 const bidTimeout = 15 * 1000;
 const winningBidTreshold = 3000;
 
@@ -21,29 +19,9 @@ export type Session = {
   endTime: Date | null,
 };
 
-export type Message = {
-  sessionId: number,
-  id: number,
-  sendTime: Date,
-  user: {
-    name: string,
-    avatar: string,
-    avatarColor: string,
-  },
-  text: string,
-};
-
-export type Input = {
-  timeout: Date,
-};
-
-export type End = {
-  endTime: Date,
-}
-
 export type ClinetMessage = {
   sessionId: number,
-  user: Message["user"],
+  user: User,
   text: string,
 }
 
@@ -95,17 +73,17 @@ export const useSessionStore = defineStore("session", {
       };
       sessionSteps.set(this.session, SessionStep.started);
       this.next();
-      return Promise.resolve(this.session);
+      return this.session;
     },
     async getMessages(sessionId: number): Promise<Message[]> {
-      return Promise.resolve(this.messages.filter(message => message.sessionId === sessionId));
+      return this.messages.filter(message => message.sessionId === sessionId);
     },
     // some kind of a state machine but it works
     async next(): Promise<Message | Input | End | null> {
       const actionStore = useCurrentSessionActionStore();
       if (this.session === null) {
         actionStore.setAction(null);
-        return Promise.resolve(null);
+        return null;
       }
       const step = sessionSteps.get(this.session) || SessionStep.started;
       if (step === SessionStep.started) {
@@ -120,7 +98,7 @@ export const useSessionStore = defineStore("session", {
         this.messages.push(message);
         actionStore.setAction(message);
         this.next();
-        return Promise.resolve(message);
+        return message;
       }
       if (step === SessionStep.sayHello) {
         sessionSteps.set(this.session, SessionStep.sendPrice);
@@ -134,7 +112,7 @@ export const useSessionStore = defineStore("session", {
         this.messages.push(message);
         actionStore.setAction(message);
         this.next();
-        return Promise.resolve(message);
+        return message;
       }
       if (step === SessionStep.sendPrice) {
         sessionSteps.set(this.session, SessionStep.expectBid);
@@ -148,7 +126,7 @@ export const useSessionStore = defineStore("session", {
             this.next();
           }
         }, bidTimeout + 1);
-        return Promise.resolve(input);
+        return input;
       }
       if (step === SessionStep.expectBid) {
         const lastMessage = this.messages[this.messages.length - 1];
@@ -159,7 +137,7 @@ export const useSessionStore = defineStore("session", {
             timeout: new Date(Date.now() + timeout),
           };
           actionStore.setAction(input);
-          return Promise.resolve(input);
+          return input;
         } else {
           const message = {
             sessionId: this.session.id,
@@ -171,7 +149,7 @@ export const useSessionStore = defineStore("session", {
           this.messages.push(message);
           actionStore.setAction(message);
           this.next();
-          return Promise.resolve(message);
+          return message;
         }
       }
       if (step === SessionStep.checkPrice) {
@@ -190,7 +168,7 @@ export const useSessionStore = defineStore("session", {
           this.messages.push(message);
           actionStore.setAction(message);
           this.next();
-          return Promise.resolve(message);
+          return message;
         } else {
           sessionSteps.set(this.session, SessionStep.sendPrice);
           const message = {
@@ -203,7 +181,7 @@ export const useSessionStore = defineStore("session", {
           this.messages.push(message);
           actionStore.setAction(message);
           this.next();
-          return Promise.resolve(message);
+          return message;
         }
       }
       if (step === SessionStep.end) {
@@ -211,10 +189,10 @@ export const useSessionStore = defineStore("session", {
           endTime: new Date(),
         }
         actionStore.setAction(end);
-        return Promise.resolve(end);
+        return end;
       }
       actionStore.setAction(null);
-      return Promise.resolve(null)
+      return null;
     },
     async sendMessage(clientMessage: ClinetMessage): Promise<void> {
       if (this.session === null) {

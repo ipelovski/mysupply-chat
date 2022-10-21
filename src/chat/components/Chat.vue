@@ -1,13 +1,11 @@
 <script lang="ts">
-import { useSessionStore, useCurrentSessionActionStore, type End, type Input, type Message } from "@/stores/session";
+import type { User } from "@/shared/model/User";
+import { useUserStore } from "@/shared/stores/user";
+import type { End, Input, Message } from "../model";
+import { useSessionStore, useCurrentSessionActionStore } from "../stores/session";
 import ChatAvatar from "./ChatAvatar.vue";
 
 const pollInterval = 100;
-const currentUser = {
-  name: "John Doe",
-  avatar: "J",
-  avatarColor: "blue",
-};
 
 type ChatMessage = {
   id: number,
@@ -24,12 +22,14 @@ export default {
     ChatAvatar
   },
   setup() {
-    const store = useSessionStore();
+    const sessionStore = useSessionStore();
     const actionStore = useCurrentSessionActionStore();
+    const userStore = useUserStore();
     return {
-      store,
+      sessionStore: sessionStore,
       actionStore,
       clearTimeoutProgress: -1,
+      userStore,
     };
   },
   data() {
@@ -38,12 +38,12 @@ export default {
       timeoutProgress: 0,
       bidTimeout: 0,
       messageInputValue: "",
-      currentUser,
+      currentUser: null as User | null,
     };
   },
   computed: {
     chatMessages(): ChatMessage[] {
-      return this.store.messages.reduce((messages, item, index) => {
+      return this.sessionStore.messages.reduce((messages, item, index) => {
         if (index > 0) {
           const previous = messages[messages.length - 1];
           if (item.user.name === previous.user.name) {
@@ -67,7 +67,7 @@ export default {
       let expectedEnd = timeout.getTime();
       this.clearTimeoutProgress = setInterval(() => {
         const now = new Date().getTime();
-        this.timeoutProgress = (expectedEnd - now) / this.store.defaultTimeout;
+        this.timeoutProgress = (expectedEnd - now) / this.sessionStore.defaultTimeout;
         this.bidTimeout = (((expectedEnd - now) / 1000) + 1) | 0;
         if (this.timeoutProgress <= 0) {
           this.timeoutProgress = 0;
@@ -80,9 +80,9 @@ export default {
       const bid = this.messageInputValue || 0;
       this.messageInputValue = "";
       this.next = null;
-      await this.store.sendMessage({
-        user: currentUser,
-        sessionId: this.store.session!.id,
+      await this.sessionStore.sendMessage({
+        user: this.currentUser!,
+        sessionId: this.sessionStore.session!.id,
         text: bid + "€",
       });
     },
@@ -96,13 +96,16 @@ export default {
       }, 10);
     }
   },
+  async created() {
+    this.currentUser = await this.userStore.getCurrentUser();
+  },
   async mounted() {
     this.actionStore.$subscribe((mutation, state) => {
       if (state.action !== null && "timeout" in state.action) {
         this.startTimeout(state.action.timeout);
       }
     });
-    await this.store.create();
+    await this.sessionStore.create();
   },
   unmounted() {
     clearInterval(this.clearTimeoutProgress);
@@ -110,7 +113,7 @@ export default {
 }
 </script>
 <template>
-  <div class="q-pa-md row justify-center">
+  <div v-if="currentUser !== null" class="q-pa-md row justify-center">
     <div style="width: 100%; max-width: 640px">
       <q-chat-message v-for="message in chatMessages" :key="message.id"
         :text="message.text"
