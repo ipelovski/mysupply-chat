@@ -34,7 +34,7 @@ export type Message = {
 };
 
 export type Input = {
-  timeout: number,
+  timeout: Date,
 };
 
 export type End = {
@@ -68,6 +68,17 @@ const messageTexts = {
 
 const sessionSteps = new WeakMap<Session, SessionStep>();
 
+export const useCurrentSessionActionStore = defineStore("currentSessionAction", {
+  state: () => ({
+    action: null as Message | Input | End | null,
+  }),
+  actions: {
+    setAction(action: Message | Input | End | null) {
+      this.action = action;
+    }
+  }
+});
+
 export const useSessionStore = defineStore("session", {
   state: (): State => ({
     session: null,
@@ -83,16 +94,18 @@ export const useSessionStore = defineStore("session", {
         endTime: null,
       };
       sessionSteps.set(this.session, SessionStep.started);
+      this.next();
       return Promise.resolve(this.session);
     },
     async getMessages(sessionId: number): Promise<Message[]> {
       return Promise.resolve(this.messages.filter(message => message.sessionId === sessionId));
     },
-    async next(): Promise<Message | Input | End> {
+    // some kind of a state machine but it works
+    async next(): Promise<Message | Input | End | null> {
+      const actionStore = useCurrentSessionActionStore();
       if (this.session === null) {
-        return {
-          endTime: new Date(),
-        }
+        actionStore.setAction(null);
+        return Promise.resolve(null);
       }
       const step = sessionSteps.get(this.session) || SessionStep.started;
       if (step === SessionStep.started) {
@@ -105,6 +118,8 @@ export const useSessionStore = defineStore("session", {
           text: messageTexts.hello,
         };
         this.messages.push(message);
+        actionStore.setAction(message);
+        this.next();
         return Promise.resolve(message);
       }
       if (step === SessionStep.sayHello) {
@@ -117,22 +132,34 @@ export const useSessionStore = defineStore("session", {
           text: messageTexts.sendPrice(this.session.price),
         };
         this.messages.push(message);
+        actionStore.setAction(message);
+        this.next();
         return Promise.resolve(message);
       }
       if (step === SessionStep.sendPrice) {
         sessionSteps.set(this.session, SessionStep.expectBid);
-        return Promise.resolve({
-          timeout: bidTimeout,
-        });
+        const input = {
+          timeout: new Date(Date.now() + bidTimeout),
+        };
+        actionStore.setAction(input);
+        setTimeout(() => {
+          const step = sessionSteps.get(this.session!)!;
+          if (step === SessionStep.expectBid) {
+            this.next();
+          }
+        }, bidTimeout + 1);
+        return Promise.resolve(input);
       }
       if (step === SessionStep.expectBid) {
         const lastMessage = this.messages[this.messages.length - 1];
         const currentTime = new Date();
         const timeout = bidTimeout - (currentTime.getTime() - lastMessage.sendTime.getTime());
         if (timeout > 0) {
-          return Promise.resolve({
-            timeout,
-          });
+          const input = {
+            timeout: new Date(Date.now() + timeout),
+          };
+          actionStore.setAction(input);
+          return Promise.resolve(input);
         } else {
           const message = {
             sessionId: this.session.id,
@@ -142,6 +169,8 @@ export const useSessionStore = defineStore("session", {
             text: messageTexts.sendPriceTimeout,
           };
           this.messages.push(message);
+          actionStore.setAction(message);
+          this.next();
           return Promise.resolve(message);
         }
       }
@@ -159,9 +188,11 @@ export const useSessionStore = defineStore("session", {
             text: messageTexts.end,
           };
           this.messages.push(message);
+          actionStore.setAction(message);
+          this.next();
           return Promise.resolve(message);
         } else {
-          sessionSteps.set(this.session, SessionStep.expectBid);
+          sessionSteps.set(this.session, SessionStep.sendPrice);
           const message = {
             sessionId: this.session.id,
             id: this.messages.length,
@@ -170,12 +201,20 @@ export const useSessionStore = defineStore("session", {
             text: messageTexts.sendLowerPrice,
           };
           this.messages.push(message);
+          actionStore.setAction(message);
+          this.next();
           return Promise.resolve(message);
         }
       }
-      return Promise.resolve({
-        endTime: new Date(),
-      });
+      if (step === SessionStep.end) {
+        const end = {
+          endTime: new Date(),
+        }
+        actionStore.setAction(end);
+        return Promise.resolve(end);
+      }
+      actionStore.setAction(null);
+      return Promise.resolve(null)
     },
     async sendMessage(clientMessage: ClinetMessage): Promise<void> {
       if (this.session === null) {
@@ -190,6 +229,7 @@ export const useSessionStore = defineStore("session", {
         text: clientMessage.text,
       };
       this.messages.push(message);
+      this.next();
     }
   },
 });

@@ -1,6 +1,5 @@
 <script lang="ts">
-import type { End, Input, Message } from "@/stores/session";
-import { useSessionStore } from "@/stores/session";
+import { useSessionStore, useCurrentSessionActionStore, type End, type Input, type Message } from "@/stores/session";
 import ChatAvatar from "./ChatAvatar.vue";
 
 const pollInterval = 100;
@@ -26,9 +25,10 @@ export default {
   },
   setup() {
     const store = useSessionStore();
+    const actionStore = useCurrentSessionActionStore();
     return {
       store,
-      clearInerval: -1,
+      actionStore,
       clearTimeoutProgress: -1,
     };
   },
@@ -61,11 +61,10 @@ export default {
     },
   },
   methods: {
-    startTimeout(timeout: number) {
+    startTimeout(timeout: Date) {
       clearInterval(this.clearTimeoutProgress);
       this.setFocus();
-      let time = new Date().getTime();
-      let expectedEnd = time + timeout;
+      let expectedEnd = timeout.getTime();
       this.clearTimeoutProgress = setInterval(() => {
         const now = new Date().getTime();
         this.timeoutProgress = (expectedEnd - now) / this.store.defaultTimeout;
@@ -74,26 +73,8 @@ export default {
           this.timeoutProgress = 0;
           this.bidTimeout = 0;
           clearInterval(this.clearTimeoutProgress);
-          this.startListening();
         }
       }, 50);
-    },
-    startListening() {
-      clearInterval(this.clearInerval);
-      this.clearInerval = setInterval(async () => {
-        this.next = await this.store.next();
-        if ("timeout" in this.next) {
-          this.stopListening();
-          this.startTimeout(this.next.timeout);
-        }
-        if ("endTime" in this.next) {
-          this.stopListening();
-        }
-      }, 100);
-    },
-    stopListening() {
-      clearInterval(this.clearInerval);
-      this.clearInerval = -1;
     },
     async sendBid() {
       const bid = this.messageInputValue || 0;
@@ -104,9 +85,9 @@ export default {
         sessionId: this.store.session!.id,
         text: bid + "€",
       });
-      this.startListening();
     },
     setFocus() {
+      // according to the documentation the $refs should be available in mounted, but this one $ref is not
       const interval = setInterval(() => {
         if (this.$refs.messageInput != null) {
           clearInterval(interval);
@@ -116,11 +97,15 @@ export default {
     }
   },
   async mounted() {
+    this.actionStore.$subscribe((mutation, state) => {
+      if (state.action !== null && "timeout" in state.action) {
+        this.startTimeout(state.action.timeout);
+      }
+    });
     await this.store.create();
-    this.startListening();
   },
   unmounted() {
-    clearInterval(this.clearInerval);
+    clearInterval(this.clearTimeoutProgress);
   }
 }
 </script>
@@ -137,7 +122,7 @@ export default {
       </q-chat-message>
     </div>
   </div>
-  <div v-if="next !== null && 'timeout' in next" class="client-message">
+  <div v-if="actionStore.action !== null && 'timeout' in actionStore.action" class="client-message">
     <div class="row flex-center">
       <q-linear-progress rounded :value="timeoutProgress" instant-feedback />
     </div>
@@ -145,17 +130,11 @@ export default {
       {{ bidTimeout }} seconds
     </div>
     <div class="row flex-center">
-      <!-- <div class="col-9"> -->
-      <!-- <q-input type="text" borderless v-model="bidInput" suffix="€" @keypress.enter="sendBid()" /> -->
       <span class="input">
         <input type="text" v-model="messageInputValue" @keypress.enter="event => sendBid()" ref="messageInput" />&nbsp;<span>€</span>
       </span>
-      <!-- </div>
-      <div class="col-3"> -->
       <q-btn color="primary" class="btn" unelevated label="Send" @click="sendBid()" />
-      <!-- </div> -->
     </div>
-    <!-- <input type="number" @keypress.enter="event => sendBid((event.target as HTMLInputElement).value)" /> -->
   </div>
 </template>
 <style scoped>
